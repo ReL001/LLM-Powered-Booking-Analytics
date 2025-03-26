@@ -26,12 +26,10 @@ class DataPreprocessor:
         print("Missing values before cleaning:")
         print(df.isnull().sum())
         
-        # Fill numeric columns with appropriate values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
             df[col].fillna(df[col].median(), inplace=True)
         
-        # Fill categorical columns with mode
         categorical_cols = df.select_dtypes(exclude=[np.number]).columns
         for col in categorical_cols:
             df[col].fillna(df[col].mode()[0], inplace=True)
