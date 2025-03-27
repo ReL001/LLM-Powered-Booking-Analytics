@@ -14,7 +14,7 @@ class VectorStore:
         self.data_path = data_path
         self.data = None
         self.embeddings = None
-        self.model = SentenceTransformer('all-mpnet-base-v2')
+        self.model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
         self.chroma_client = None
         self.collection = None
 
@@ -49,25 +49,31 @@ class VectorStore:
         return documents, metadata
     
     def create_chroma_collection(self, collection_name="hotel_bookings", save_path=None):
-        documents, metadata = self.prepare_documents()
-        document_ids = [f"doc_{i}" for i in range(len(documents))]
-        
-        # Initialize ChromaDB client
+        # Initialize the client based on whether we want persistence
         if save_path:
             self.chroma_client = chromadb.PersistentClient(path=save_path)
         else:
             self.chroma_client = chromadb.Client()
         
+        # Check if collection already exists
+        existing_collections = self.chroma_client.list_collections()
+        if any(col.name == collection_name for col in existing_collections):
+            print(f"Collection '{collection_name}' already exists. Loading existing collection.")
+            self.collection = self.chroma_client.get_collection(collection_name)
+            return self.collection
+        
+        print(f"Collection '{collection_name}' doesn't exist. Creating new collection.")
+        
+        # Prepare documents and metadata
+        documents, metadata = self.prepare_documents()
+        document_ids = [f"doc_{i}" for i in range(len(documents))]
+        
         # Embedding function
         sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-mpnet-base-v2"
+            model_name="paraphrase-MiniLM-L6-v2" 
         )
         
-        try:
-            self.chroma_client.delete_collection(collection_name)
-        except:
-            pass
-        
+        # Create new collection
         self.collection = self.chroma_client.create_collection(
             name=collection_name,
             embedding_function=sentence_transformer_ef,
@@ -120,11 +126,11 @@ def main():
     store = VectorStore(processed_data_path)
     store.create_chroma_collection(save_path=str(vector_store_dir / "chroma_collection"))
     
-    # Test a query
-    results = store.query("Show me bookings from Portugal with high ADR", top_k=3)
-    print("\nQuery results:")
-    for i, result in enumerate(results):
-        print(f"Result {i+1}: {result['document'][:100]}... (Score: {result['score']})")
+    # # Test a query
+    # results = store.query("Show me bookings from Portugal with high ADR", top_k=3)
+    # print("\nQuery results:")
+    # for i, result in enumerate(results):
+    #     print(f"Result {i+1}: {result['document'][:100]}... (Score: {result['score']})")
     
     print("\nVector store creation completed successfully.")
 
