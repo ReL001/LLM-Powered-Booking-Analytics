@@ -1,3 +1,3 @@
-#Data processing package for hotel booking system.
+#Data processing package
 
 from .preprocess import DataPreprocessor

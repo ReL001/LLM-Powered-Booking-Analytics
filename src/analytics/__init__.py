@@ -1,4 +1,3 @@
-"""
-Analytics package for hotel booking system.
-"""
+# Analytics package
+
 from .analytics import BookingAnalytics

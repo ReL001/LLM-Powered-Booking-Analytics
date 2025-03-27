@@ -15,11 +15,9 @@ class DataPreprocessor:
         return self.data
     
     def clean_data(self):
-
         if self.data is None:
-            raise ValueError("Data not loaded. Call load_data() first.")
+            raise ValueError("Data not loaded.")
         
-        # Create a copy for processing
         df = self.data.copy()
         
         # Handle missing values
@@ -34,15 +32,27 @@ class DataPreprocessor:
         for col in categorical_cols:
             df[col].fillna(df[col].mode()[0], inplace=True)
         
-        # Convert date columns to datetime if they exist
-        date_columns = [col for col in df.columns if 'date' in col.lower() or 
-                        'arrival' in col.lower() or 'departure' in col.lower()]
+        if 'reservation_status_date' in df.columns:
+            df['reservation_status_date'] = pd.to_datetime(df['reservation_status_date'], errors='coerce')
+        else:
+            print("Column 'reservation_status_date' not found.")
         
-        for col in date_columns:
-            try:
-                df[col] = pd.to_datetime(df[col])
-            except:
-                print(f"Could not convert column '{col}' to datetime.")
+        # Convert date columns to datetime
+        if all(col in df.columns for col in ['arrival_date_year', 'arrival_date_month', 'arrival_date_day_of_month']):
+            month_map = {
+                'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+                'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+            }
+            df['arrival_month_number'] = df['arrival_date_month'].map(month_map)
+            df['arrival_date'] = pd.to_datetime(
+                df['arrival_date_year'].astype(str) + '-' +
+                df['arrival_month_number'].astype(str) + '-' +
+                df['arrival_date_day_of_month'].astype(str),
+                errors='coerce'
+            )
+            df.drop('arrival_month_number', axis=1, inplace=True)
+        else:
+            print("Required columns for arrival_date not found.")
         
         print("Missing values after cleaning:")
         print(df.isnull().sum())
@@ -52,62 +62,44 @@ class DataPreprocessor:
     
     def add_derived_features(self):
         if self.processed_data is None:
-            raise ValueError("Data not cleaned. Call clean_data() first.")
+            raise ValueError("Data not cleaned.")
         
         df = self.processed_data.copy()
         
-        # Add booking lead time if not already present
-        if 'reservation_status_date' in df.columns and 'arrival_date' in df.columns:
-            df['booking_lead_time'] = (df['arrival_date'] - df['reservation_status_date']).dt.days
-        
-        # Add total revenue column if not already present
-        if 'adr' in df.columns and 'stays_in_weekend_nights' in df.columns and 'stays_in_week_nights' in df.columns:
+        # Calculate total nights and revenue
+        if 'stays_in_weekend_nights' in df.columns and 'stays_in_week_nights' in df.columns:
             df['total_nights'] = df['stays_in_weekend_nights'] + df['stays_in_week_nights']
-            df['total_revenue'] = df['adr'] * df['total_nights']
+            if 'adr' in df.columns:
+                df['total_revenue'] = df['adr'] * df['total_nights']
         
         self.processed_data = df
         return self.processed_data
     
     def save_processed_data(self, output_path):
-
         if self.processed_data is None:
-            raise ValueError("No processed data to save. Run the preprocessing first.")
+            raise ValueError("No processed data to save. Run preprocessing first.")
         
-        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        file_extension = os.path.splitext(output_path)[1].lower()
-        
-        if file_extension == '.csv':
-            self.processed_data.to_csv(output_path, index=False)
-        else:
-            raise ValueError(f"Unsupported output file format: {file_extension}")
-            
+        self.processed_data.to_csv(output_path, index=False)
         print(f"Processed data saved to {output_path}")
 
 def main():
-    # Define paths
     base_dir = Path(__file__).resolve().parent.parent.parent
-    # data_dir = base_dir / 'data'
+    data_dir = base_dir / 'data'
     raw_data_path = data_dir / 'raw' / 'hotel_bookings.csv'
-    processed_data_path = base_dir / 'data' / 'processed' / 'hotel_bookings_processed.csv'
+    processed_data_path = data_dir / 'processed' / 'hotel_bookings_processed.csv'
     
-    # Create directories if they don't exist
-    os.makedirs(data_dir / 'raw', exist_ok=True)
     os.makedirs(data_dir / 'processed', exist_ok=True)
     
-    # Check if data file exists
-    if not os.path.exists(raw_data_path):
-        print(f"Data file not found at {raw_data_path}")
+    if not raw_data_path.exists():
+        print(f"Data not found at {raw_data_path}")
         return
     
-    # Initialize and run the data preprocessor
     preprocessor = DataPreprocessor(raw_data_path)
     preprocessor.load_data()
     preprocessor.clean_data()
     preprocessor.add_derived_features()
     preprocessor.save_processed_data(processed_data_path)
-    
     print("Data preprocessing completed successfully.")
 
 if __name__ == "__main__":
