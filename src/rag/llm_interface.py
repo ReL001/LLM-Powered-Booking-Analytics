@@ -75,7 +75,7 @@ class LLMInterface:
         for i, result in enumerate(results):
             context += f"Record {i+1}:\n"
             for key, value in result['metadata'].items():
-                if key in ['adr', 'lead_time', 'arrival_date', 'total_revenue', 'country', 'is_canceled', 'reservation_status']:
+                if key in ['adr', 'lead_time', 'arrival_date', 'arrival_date_year', 'arrival_date_month', 'total_revenue', 'country', 'is_canceled', 'reservation_status', 'hotel', 'stays_in_weekend_nights', 'stays_in_week_nights', 'total_nights']:
                     context += f"- {key}: {value}\n"
             context += "\n"
         
@@ -85,10 +85,12 @@ class LLMInterface:
         # Retrieve relevant context
         context = self.retrieve_relevant_context(query, top_k=top_k)
         
-        # Craft the prompt with the context
+        # Craft the prompt with the context and better instructions
         prompt = f"""
 You are an AI assistant that helps analyze hotel booking data.
 Use the following retrieved records to answer the question accurately.
+If the answer cannot be found in the records, say so clearly.
+Be concise but thorough and provide numerical data when relevant.
 
 {context}
 

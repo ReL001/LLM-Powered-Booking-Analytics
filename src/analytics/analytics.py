@@ -5,7 +5,7 @@ import seaborn as sns
 from pathlib import Path
 import os
 
-class Analytics:
+class BookingAnalytics:
     def __init__(self, data_path):
         self.data_path = data_path
         self.data = None
@@ -155,6 +155,42 @@ class Analytics:
         
         print(f"Analytics visualizations saved to {output_dir}")
 
+    def generate_all_analytics(self):
+        results = {}
+        
+        try:
+            results["revenue_trends"] = self.revenue_trends()
+        except Exception as e:
+            results["revenue_trends"] = {"error": str(e)}
+            
+        try:
+            results["hotel_distribution"] = self.hotel_distribution().to_dict()
+        except Exception as e:
+            results["hotel_distribution"] = {"error": str(e)}
+            
+        try:
+            results["cancellation_rate"] = self.cancellation_rates().to_dict()
+        except Exception as e:
+            results["cancellation_rate"] = {"error": str(e)}
+            
+        try:
+            results["geographical_distribution"] = self.geographical_distribution().to_dict()
+        except Exception as e:
+            results["geographical_distribution"] = {"error": str(e)}
+            
+        try:
+            lead_filtered = self.lead_time_distribution()
+            results["lead_time_distribution"] = {
+                "mean": lead_filtered["lead_time"].mean(),
+                "median": lead_filtered["lead_time"].median(),
+                "min": lead_filtered["lead_time"].min(),
+                "max": lead_filtered["lead_time"].max()
+            }
+        except Exception as e:
+            results["lead_time_distribution"] = {"error": str(e)}
+            
+        return results
+
 def main():
     # Define paths
     base_dir = Path(__file__).resolve().parent.parent.parent
@@ -163,7 +199,7 @@ def main():
     
     os.makedirs(visualizations_dir, exist_ok=True)
     
-    analytics = Analytics(processed_data_path)
+    analytics = BookingAnalytics(processed_data_path)
     analytics.save_analytics_visualizations(visualizations_dir)
     
     print("Analytics completed successfully.")
