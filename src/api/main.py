@@ -8,6 +8,9 @@ import datetime
 import time
 from pathlib import Path
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Add the src directory to the Python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -64,7 +67,7 @@ os.makedirs(base_dir / 'logs', exist_ok=True)
 # Initialize components when they are needed
 analytics = None
 vector_store = None
-llm_interface = None
+llm_instance = None
 query_history = []
 
 # Helper functions
@@ -82,21 +85,33 @@ def get_vector_store():
     return vector_store
 
 def get_llm_interface():
-    global llm_interface
-    if llm_interface is None:
-        vs = get_vector_store()
-        
-        # Use the Mistral API
-        model_name = os.environ.get("MISTRAL_MODEL_NAME", "mistral-medium")
-        llm_interface = LLMInterface(model_name=model_name, vector_store=vs)
-        
-        try:
-            llm_interface.load_model()
-        except Exception as e:
-            print(f"Error initializing Mistral API: {e}")
-            return None
+    global llm_instance
     
-    return llm_interface
+    if llm_instance is None:
+        try:
+            # Get the vector store using existing function
+            vector_store = get_vector_store()
+            
+            # Get Mistral API key from environment
+            api_key = os.environ.get("MISTRAL_API_KEY")
+            if not api_key:
+                raise ValueError("MISTRAL_API_KEY not found in environment variables")
+            
+            # Initialize the LLM interface with vector store
+            model_name = os.environ.get("MISTRAL_MODEL_NAME", "mistral-medium")
+            
+            # Create instance with vector store already obtained
+            llm_instance = LLMInterface(model_name=model_name, vector_store=vector_store)
+            
+            # Load model (tests API connection)
+            llm_instance.load_model()
+            
+            print("LLM interface initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize LLM interface: {e}")
+            raise ValueError(f"LLM initialization failed: {e}")
+    
+    return llm_instance
 
 def log_query(query, answer):
     global query_history
@@ -209,9 +224,9 @@ def health_check():
         health_status["status"] = "degraded"
     
     # Check LLM API
-    global llm_interface
-    if llm_interface is not None:
-        if llm_interface.is_healthy():
+    global llm_instance
+    if llm_instance is not None:
+        if llm_instance.is_healthy():
             health_status["components"]["llm"] = "healthy"
         else:
             health_status["components"]["llm"] = "unhealthy"

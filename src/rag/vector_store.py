@@ -18,7 +18,11 @@ class VectorStore:
         self.chroma_client = None
         self.collection = None
 
-        self.load_data()
+        # Only load data if the path exists
+        if os.path.exists(data_path):
+            self.load_data()
+        else:
+            raise FileNotFoundError(f"Data file not found at: {data_path}")
         
     def load_data(self):
         file_extension = os.path.splitext(self.data_path)[1].lower()
@@ -51,19 +55,24 @@ class VectorStore:
     def create_chroma_collection(self, collection_name="hotel_bookings", save_path=None):
         # Initialize the client based on whether we want persistence
         if save_path:
-            self.chroma_client = chromadb.PersistentClient(path=save_path)
+            path = os.path.join(save_path, "chroma_db")
+            os.makedirs(path, exist_ok=True)
+            self.chroma_client = chromadb.PersistentClient(path=path)
         else:
             self.chroma_client = chromadb.Client()
         
-        # Check if collection already exists
-        existing_collections = self.chroma_client.list_collections()
-        if any(col.name == collection_name for col in existing_collections):
-            print(f"Collection '{collection_name}' already exists. Loading existing collection.")
-            self.collection = self.chroma_client.get_collection(collection_name)
-            return self.collection
+        # Get all collections to check if our collection exists
+        all_collections = self.chroma_client.list_collections()
+        collection_exists = any(col.name == collection_name for col in all_collections)
         
-        print(f"Collection '{collection_name}' doesn't exist. Creating new collection.")
-        
+        try:
+            if collection_exists:
+                self.collection = self.chroma_client.get_collection(name=collection_name)
+                print(f"Collection '{collection_name}' found. Using existing collection.")
+                return self.collection
+        except Exception as e:
+            print(f"Collection '{collection_name}' not found or error accessing it: {e}. Creating new collection.")
+            
         # Prepare documents and metadata
         documents, metadata = self.prepare_documents()
         document_ids = [f"doc_{i}" for i in range(len(documents))]
@@ -120,19 +129,24 @@ def main():
     processed_data_path = base_dir / 'data' / 'processed' / 'hotel_bookings_processed.csv'
     vector_store_dir = base_dir / 'data' / 'vector_store'
     
-    os.makedirs(vector_store_dir, exist_ok=True)
-    
-    # Create vector store
-    store = VectorStore(processed_data_path)
-    store.create_chroma_collection(save_path=str(vector_store_dir / "chroma_collection"))
-    
-    # # Test a query
-    # results = store.query("Show me bookings from Portugal with high ADR", top_k=3)
-    # print("\nQuery results:")
-    # for i, result in enumerate(results):
-    #     print(f"Result {i+1}: {result['document'][:100]}... (Score: {result['score']})")
-    
-    print("\nVector store creation completed successfully.")
+    # Check if the data file exists
+    if not processed_data_path.exists():
+        print(f"Error: Data file not found at {processed_data_path}")
+        return
+        
+    # Create vector store instance
+    try:
+        store = VectorStore(str(processed_data_path))
+        
+        # Create directory for vector store
+        os.makedirs(vector_store_dir, exist_ok=True)
+        
+        # Create collection
+        store.create_chroma_collection(collection_name="hotel_bookings", save_path=str(vector_store_dir))
+        
+        print("\nVector store creation completed successfully.")
+    except Exception as e:
+        print(f"Error creating vector store: {e}")
 
 if __name__ == "__main__":
     main()

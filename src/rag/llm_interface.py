@@ -8,30 +8,31 @@ from typing import Optional, Dict, Any, List, Union
 class LLMInterface:
     def __init__(self, model_name="mistral-medium", vector_store=None):
         self.model_name = model_name
+        self.api_key = os.environ.get("MISTRAL_API_KEY")
+        self.api_url = "https://api.mistral.ai/v1/chat/completions"
+        self.is_loaded = False
         self.vector_store = vector_store
         
-        # API settings
-        self.api_key = os.environ.get("MISTRAL_API_KEY", "")
-        self.api_url = os.environ.get("MISTRAL_API_URL", "https://api.mistral.ai/v1/chat/completions")
-        
-        # Check if API key is provided
-        if not self.api_key:
-            print("No API key")
-        
-        self.is_loaded = False
-        
+        # If vector_store is not provided, set is_loaded to False
+        if self.vector_store is None:
+            self.is_loaded = False
+        else:
+            # If we have a vector store, we can consider the model partially loaded
+            # We'll still need to check the API key in load_model
+            self.is_loaded = True
+    
     def load_model(self):
-        print(f"Using Mistral API with model {self.model_name}")
-        
-        # Validate API key is set
         if not self.api_key:
-            raise ValueError("API key not provided.")
+            self.api_key = os.environ.get("MISTRAL_API_KEY")
+            if not self.api_key:
+                raise ValueError("API key not found. Set MISTRAL_API_KEY environment variable.")
         
-        # Test API connection to verify credentials
-        self.is_healthy()
-        
-        self.is_loaded = True
-        print(f"API connection validated successfully.")
+        # Test the API connection
+        test_response = self.generate_response("Test connection", max_new_tokens=10)
+        if test_response:
+            self.is_loaded = True
+            return True
+        return False
     
     def generate_response(self, query, max_new_tokens=512, temperature=0.7):
 
